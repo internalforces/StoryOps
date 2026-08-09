@@ -1,4 +1,11 @@
-import type { BenchmarkCase, ContinuityIssue, Lore, ReviewState } from '../types'
+import type {
+  BenchmarkCase,
+  ContinuityIssue,
+  EvaluationFailureMode,
+  EvaluationOutcome,
+  Lore,
+  ReviewState,
+} from '../types'
 
 export interface SearchResult {
   lore: Lore
@@ -76,45 +83,94 @@ function hashText(value: string): string {
 }
 
 export interface EvaluationResult {
+  engineId: 'rule-v1'
   total: number
+  passed: number
+  passRate: number
   truePositive: number
   trueNegative: number
   falsePositive: number
   falseNegative: number
+  contextRequired: number
+  contextIdentified: number
   precision: number
   recall: number
-  accuracy: number
   retrievalHitRate: number
   meanReciprocalRank: number
   latencyMs: number
   estimatedCostUsd: number
-  rows: Array<BenchmarkCase & { detected: boolean; retrievedRank: number | null }>
+  categories: CategoryEvaluationResult[]
+  rows: Array<BenchmarkCase & {
+    detected: boolean
+    predictedOutcome: EvaluationOutcome
+    passed: boolean
+    retrievedRank: number | null
+  }>
+}
+
+export interface CategoryEvaluationResult {
+  failureMode: EvaluationFailureMode
+  total: number
+  passed: number
+  passRate: number
+  falsePositive: number
+  falseNegative: number
+  contextMisses: number
 }
 
 export function runEvaluation(cases: BenchmarkCase[], lore: Lore[]): EvaluationResult {
   const start = performance.now()
   const rows = cases.map((testCase) => {
     const detected = inspectContinuity(testCase.sentence, lore).length > 0
+    const predictedOutcome: EvaluationOutcome = detected ? 'conflict' : 'consistent'
     const search = searchLore(testCase.sentence, lore)
     const rank = testCase.expectedLoreId ? search.findIndex((result) => result.lore.id === testCase.expectedLoreId) + 1 : 0
-    return { ...testCase, detected, retrievedRank: rank > 0 ? rank : null }
+    return {
+      ...testCase,
+      detected,
+      predictedOutcome,
+      passed: predictedOutcome === testCase.expectedOutcome,
+      retrievedRank: rank > 0 ? rank : null,
+    }
   })
-  const truePositive = rows.filter((row) => row.expectedConflict && row.detected).length
-  const trueNegative = rows.filter((row) => !row.expectedConflict && !row.detected).length
-  const falsePositive = rows.filter((row) => !row.expectedConflict && row.detected).length
-  const falseNegative = rows.filter((row) => row.expectedConflict && !row.detected).length
+  const truePositive = rows.filter((row) => row.expectedOutcome === 'conflict' && row.detected).length
+  const trueNegative = rows.filter((row) => row.expectedOutcome === 'consistent' && !row.detected).length
+  const falsePositive = rows.filter((row) => row.expectedOutcome === 'consistent' && row.detected).length
+  const falseNegative = rows.filter((row) => row.expectedOutcome === 'conflict' && !row.detected).length
+  const contextRequired = rows.filter((row) => row.expectedOutcome === 'context_required').length
+  const contextIdentified = 0
+  const passed = rows.filter((row) => row.passed).length
   const expectedRetrieval = rows.filter((row) => row.expectedLoreId)
   const reciprocalRank = expectedRetrieval.reduce((sum, row) => sum + (row.retrievedRank ? 1 / row.retrievedRank : 0), 0)
+  const failureModes = [...new Set(cases.map((testCase) => testCase.failureMode))]
+  const categories = failureModes.map((failureMode) => {
+    const categoryRows = rows.filter((row) => row.failureMode === failureMode)
+    const categoryPassed = categoryRows.filter((row) => row.passed).length
+    return {
+      failureMode,
+      total: categoryRows.length,
+      passed: categoryPassed,
+      passRate: ratio(categoryPassed, categoryRows.length),
+      falsePositive: categoryRows.filter((row) => row.expectedOutcome === 'consistent' && row.detected).length,
+      falseNegative: categoryRows.filter((row) => row.expectedOutcome === 'conflict' && !row.detected).length,
+      contextMisses: categoryRows.filter((row) => row.expectedOutcome === 'context_required').length,
+    }
+  })
   return {
+    engineId: 'rule-v1',
     total: rows.length,
+    passed,
+    passRate: ratio(passed, rows.length),
     truePositive, trueNegative, falsePositive, falseNegative,
+    contextRequired,
+    contextIdentified,
     precision: ratio(truePositive, truePositive + falsePositive),
     recall: ratio(truePositive, truePositive + falseNegative),
-    accuracy: ratio(truePositive + trueNegative, rows.length),
     retrievalHitRate: ratio(expectedRetrieval.filter((row) => row.retrievedRank !== null).length, expectedRetrieval.length),
     meanReciprocalRank: ratio(reciprocalRank, expectedRetrieval.length),
     latencyMs: Number((performance.now() - start).toFixed(2)),
     estimatedCostUsd: 0,
+    categories,
     rows,
   }
 }

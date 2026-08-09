@@ -1,4 +1,4 @@
-import type { BenchmarkCase, Database } from '../types'
+import type { Database } from '../types'
 
 const now = '2026-08-09T09:00:00.000Z'
 
@@ -81,16 +81,3 @@ export const seedDatabase: Database = {
   ],
   reviews: {},
 }
-
-export const benchmarkCases: BenchmarkCase[] = [
-  { id: 'eval-01', sentence: '월문은 한낮에 활짝 열렸다.', expectedConflict: true, expectedLoreId: 'lore-moon-gate-time', label: '시간 규칙 충돌' },
-  { id: 'eval-02', sentence: '자정 종이 울리자 월문이 잠깐 열렸다.', expectedConflict: false, label: '시간 규칙 정상' },
-  { id: 'eval-03', sentence: '윤슬은 검은 눈으로 봉인을 살폈다.', expectedConflict: true, expectedLoreId: 'lore-yoonseul-eyes', label: '외형 충돌' },
-  { id: 'eval-04', sentence: '윤슬의 은빛 눈이 어둠 속에서 반짝였다.', expectedConflict: false, label: '외형 정상' },
-  { id: 'eval-05', sentence: '해온의 먹제비는 폭우를 뚫고 높이 날았다.', expectedConflict: true, expectedLoreId: 'lore-swallow-rain', label: '능력 규칙 충돌' },
-  { id: 'eval-06', sentence: '비가 오자 먹제비는 처마 아래 몸을 숨겼다.', expectedConflict: false, label: '능력 규칙 정상' },
-  { id: 'eval-07', sentence: '무영은 남쪽 탑의 창문을 열어 바람을 들였다.', expectedConflict: true, expectedLoreId: 'lore-south-tower-windows', label: '공간 구조 충돌' },
-  { id: 'eval-08', sentence: '남쪽 탑의 막힌 벽을 따라 무영이 걸었다.', expectedConflict: false, label: '공간 구조 정상' },
-  { id: 'eval-09', sentence: '기억나침반은 언제나 북쪽을 향했다.', expectedConflict: true, expectedLoreId: 'lore-compass-direction', label: '도구 성질 충돌' },
-  { id: 'eval-10', sentence: '기억나침반이 윤슬의 잃어버린 기억을 향해 떨렸다.', expectedConflict: false, label: '도구 성질 정상' },
-]

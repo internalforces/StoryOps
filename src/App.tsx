@@ -4,10 +4,20 @@ import {
   Database, FileCheck2, FileText, Gauge, GitBranch, LayoutDashboard, Menu,
   Plus, RefreshCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, Upload, Users, X,
 } from 'lucide-react'
-import { benchmarkCases } from './data/seed'
+import { benchmarkCases, failureModeLabels } from './data/evaluation'
 import { useDatabase } from './hooks/useDatabase'
 import { inspectContinuity, runEvaluation, searchLore } from './lib/continuity'
-import type { Character, Database as StoryDatabase, Episode, Lore, ReviewState, Visibility, Work } from './types'
+import type {
+  Character,
+  Database as StoryDatabase,
+  Episode,
+  EvaluationFailureMode,
+  EvaluationOutcome,
+  Lore,
+  ReviewState,
+  Visibility,
+  Work,
+} from './types'
 
 type View = 'overview' | 'content' | 'lore' | 'continuity' | 'evaluation'
 type EntityKind = 'work' | 'episode' | 'character' | 'lore'
@@ -25,7 +35,7 @@ const labels: Record<View, { eyebrow: string; title: string; description: string
   content: { eyebrow: 'CONTENT', title: '작품과 회차', description: '원고 버전과 공개 범위를 안정적인 ID로 관리합니다.' },
   lore: { eyebrow: 'WORLD BIBLE', title: '인물과 설정', description: '설정을 구조화하고 처음 등장한 근거 회차에 연결합니다.' },
   continuity: { eyebrow: 'CONTINUITY', title: '규칙 기반 연속성 검사', description: '새 원고에서 관련 설정을 찾고 검토 가능한 충돌 후보를 만듭니다.' },
-  evaluation: { eyebrow: 'EVALUATION', title: '품질 평가', description: '의도적 충돌과 정상 문장으로 검색·판정 품질을 회귀 테스트합니다.' },
+  evaluation: { eyebrow: 'EVALUATION', title: '품질 평가', description: '충돌·정상·문맥 필요 문장으로 검색·판정 품질을 회귀 테스트합니다.' },
 }
 
 export default function App() {
@@ -96,12 +106,13 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
   const draft = database.episodes.filter((episode) => episode.state === 'draft').length
   const reviewCount = Object.keys(database.reviews).length
   const recent = [...database.episodes].sort((a, b) => b.number - a.number).slice(0, 4)
+  const baseline = useMemo(() => runEvaluation(benchmarkCases, database.lore), [database.lore])
   return <>
     <section className="stats-grid">
       <StatCard icon={FileText} tone="sand" label="회차 버전" value={database.episodes.length} meta={`${database.source.uniqueEpisodes}개 회차 · ${canon} 정본 · ${draft} 초안`} />
       <StatCard icon={Database} tone="sage" label="등록 설정" value={database.lore.length} meta={`${database.characters.length}명 인물 연결`} />
       <StatCard icon={CircleAlert} tone="coral" label="검토 기록" value={reviewCount} meta={reviewCount ? '사용자 판단 반영됨' : '새 원고를 검사해 보세요'} />
-      <StatCard icon={Activity} tone="blue" label="회귀셋 통과" value={database.source.kind === 'synthetic' ? '10/10' : '미검증'} meta={database.source.kind === 'synthetic' ? '합성 문장 기준' : '설정 데이터 등록 필요'} />
+      <StatCard icon={Activity} tone="blue" label="기준선 통과" value={database.source.kind === 'synthetic' ? `${baseline.passed}/${baseline.total}` : '미검증'} meta={database.source.kind === 'synthetic' ? '합성 평가셋 · rule-v1' : '설정 데이터 등록 필요'} />
     </section>
     <section className="overview-grid">
       <div className="panel progress-panel">
@@ -177,17 +188,22 @@ function ContinuityView({ database, setDatabase }: { database: StoryDatabase; se
 
 function EvaluationView({ database }: { database: StoryDatabase }) {
   const [runAt, setRunAt] = useState(0)
+  const [filter, setFilter] = useState<'all' | EvaluationFailureMode>('all')
   const result = useMemo(() => runEvaluation(benchmarkCases, database.lore), [database.lore, runAt])
+  const visibleRows = filter === 'all' ? result.rows : result.rows.filter((row) => row.failureMode === filter)
   return <div className="content-stack">
-    <section className="evaluation-hero"><div><span className="eyebrow">REGRESSION SUITE</span><h2>검사 품질을 숫자로 확인합니다.</h2><p>충돌 5건과 정상 5건을 동일한 검색·판정 파이프라인에 통과시켰습니다.</p></div><button className="primary" onClick={() => setRunAt(Date.now())}><RefreshCcw size={17} />평가 다시 실행</button></section>
-    <section className="metrics-grid"><Metric label="회귀셋 통과" value={`${result.truePositive + result.trueNegative}/${result.total}`} note="합성 문장 기준" /><Metric label="재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /><Metric label="실행 시간" value={`${result.latencyMs.toFixed(2)}ms`} note={`추정 비용 $${result.estimatedCostUsd.toFixed(4)}`} /></section>
-    <section className="evaluation-grid"><div className="panel"><div className="panel-heading"><div><span className="kicker">TEST CASES</span><h2>문장별 결과</h2></div><span className="badge success"><Check size={13} />{result.truePositive + result.trueNegative}/{result.total} 통과</span></div><div className="eval-list">{result.rows.map((row) => { const pass = row.detected === row.expectedConflict; return <div className="eval-row" key={row.id}><span className={`eval-status ${pass ? 'pass' : 'fail'}`}>{pass ? <Check size={14} /> : <X size={14} />}</span><div><strong>{row.label}</strong><p>{row.sentence}</p></div><span className={`badge ${row.expectedConflict ? 'warning' : 'neutral'}`}>{row.expectedConflict ? '의도 충돌' : '정상'}</span><span className="rank">{row.retrievedRank ? `검색 #${row.retrievedRank}` : '—'}</span></div>})}</div></div>
-      <div className="panel failure-panel"><div className="panel-heading"><div><span className="kicker">FAILURE ANALYSIS</span><h2>실패 유형</h2></div></div>{result.falsePositive + result.falseNegative === 0 ? <div className="perfect-state"><div><ShieldCheck size={30} /></div><h3>현재 회귀셋 통과</h3><p>등록된 표현 범위에서는 오탐과 누락이 없습니다. 실제 원고에서는 아래 위험을 계속 추적합니다.</p></div> : null}<div className="risk-list"><div><span>01</span><p><strong>간접 표현</strong>동의어나 비유가 충돌 사전에 없으면 누락될 수 있습니다.</p></div><div><span>02</span><p><strong>시간축 변화</strong>설정 변경 시점이 명시되지 않으면 정상 변화를 오류로 볼 수 있습니다.</p></div><div><span>03</span><p><strong>화자 신뢰성</strong>인물의 거짓말이나 추측은 문맥 없이는 판별하기 어렵습니다.</p></div></div></div>
+    <section className="evaluation-hero"><div><span className="eyebrow">REGRESSION SUITE · {result.engineId}</span><h2>실패까지 드러내는 규칙 기반 기준선</h2><p>실제 집필 문제에서 도출한 7개 유형, 합성 문장 {result.total}건을 동일한 파이프라인에 통과시킵니다.</p></div><button className="primary" onClick={() => setRunAt(Date.now())}><RefreshCcw size={17} />평가 다시 실행</button></section>
+    <section className="metrics-grid"><Metric label="전체 통과" value={`${result.passed}/${result.total}`} note={`통과율 ${Math.round(result.passRate * 100)}%`} /><Metric label="충돌 재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="문맥 식별" value={`${result.contextIdentified}/${result.contextRequired}`} note="현재 엔진은 문맥 미지원" /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /></section>
+    <section className="panel category-panel"><div className="panel-heading"><div><span className="kicker">CATEGORY BASELINE</span><h2>유형별 통과 결과</h2></div><span className="badge neutral">실행 {result.latencyMs.toFixed(2)}ms · 비용 ${result.estimatedCostUsd.toFixed(4)}</span></div><div className="category-list">{result.categories.map((category) => <div className="category-row" key={category.failureMode}><div><strong>{failureModeLabels[category.failureMode]}</strong><span>오탐 {category.falsePositive} · 누락 {category.falseNegative} · 문맥 미처리 {category.contextMisses}</span></div><div className="category-track"><span style={{ width: `${Math.round(category.passRate * 100)}%` }} /></div><b>{category.passed}/{category.total}</b></div>)}</div></section>
+    <section className="evaluation-grid"><div className="panel"><div className="panel-heading"><div><span className="kicker">TEST CASES</span><h2>문장별 결과</h2></div><div className="evaluation-filter"><select value={filter} onChange={(event) => setFilter(event.target.value as 'all' | EvaluationFailureMode)} aria-label="평가 유형 필터"><option value="all">전체 유형</option>{Object.entries(failureModeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><span className="badge neutral">{visibleRows.length}건</span></div></div><div className="eval-list">{visibleRows.map((row) => <div className="eval-row" key={row.id}><span className={`eval-status ${row.passed ? 'pass' : 'fail'}`}>{row.passed ? <Check size={14} /> : <X size={14} />}</span><div><strong>{row.label}</strong><p>{row.sentence}</p></div><OutcomeBadge outcome={row.expectedOutcome} /><span className="rank">예측 {outcomeLabel(row.predictedOutcome)}</span></div>)}</div></div>
+      <div className="panel failure-panel"><div className="panel-heading"><div><span className="kicker">FAILURE ANALYSIS</span><h2>기준선 한계</h2></div></div><div className="baseline-state"><div><CircleAlert size={28} /></div><h3>실패를 정상적으로 기록 중</h3><p>규칙 기반 v1은 문장 안의 직접 충돌 표현만 판정합니다. 시간축·화자·기억 문맥은 아직 출력하지 않습니다.</p></div><div className="risk-list"><div><span>01</span><p><strong>오탐 {result.falsePositive}건</strong>정상적인 설정 변화를 충돌로 볼 수 있습니다.</p></div><div><span>02</span><p><strong>누락 {result.falseNegative}건</strong>비유와 별칭이 등록되지 않으면 놓칩니다.</p></div><div><span>03</span><p><strong>문맥 미처리 {result.contextRequired - result.contextIdentified}건</strong>회상·거짓말·불확실한 기억은 추가 문맥이 필요합니다.</p></div></div></div>
     </section>
   </div>
 }
 
 function Metric({ label, value, note }: { label: string; value: string; note: string }) { return <div className="metric"><span>{label}</span><strong>{value}</strong><p>{note}</p></div> }
+function outcomeLabel(outcome: EvaluationOutcome) { return outcome === 'conflict' ? '충돌' : outcome === 'consistent' ? '정상' : '문맥 필요' }
+function OutcomeBadge({ outcome }: { outcome: EvaluationOutcome }) { return <span className={`badge ${outcome === 'conflict' ? 'warning' : outcome === 'consistent' ? 'success' : 'context'}`}>{outcomeLabel(outcome)}</span> }
 function EmptyState({ icon: Icon, title, body }: { icon: typeof Search; title: string; body: string }) { return <div className="empty-state"><div><Icon size={25} /></div><h3>{title}</h3><p>{body}</p></div> }
 function StateBadge({ state }: { state: Episode['state'] }) { return <span className={`badge ${state === 'canon' ? 'success' : 'draft'}`}>{state === 'canon' ? '정본' : '초안'}</span> }
 function ReviewBadge({ state }: { state: ReviewState }) { return state === 'pending' ? <span className="badge neutral"><Clock3 size={12} />검토 대기</span> : state === 'approved' ? <span className="badge success"><Check size={12} />승인됨</span> : <span className="badge draft"><X size={12} />오탐</span> }

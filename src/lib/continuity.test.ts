@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { benchmarkCases, seedDatabase } from '../data/seed'
+import { benchmarkCases } from '../data/evaluation'
+import { seedDatabase } from '../data/seed'
 import { inspectContinuity, runEvaluation, searchLore, splitManuscript } from './continuity'
 
 describe('continuity engine', () => {
@@ -20,9 +21,12 @@ describe('continuity engine', () => {
     expect(reviewed.status).toBe('false_positive')
   })
 
-  it('passes the bundled regression set', () => {
+  it('records the rule-v1 baseline without hiding known failures', () => {
     const result = runEvaluation(benchmarkCases, seedDatabase.lore)
-    expect(result.accuracy).toBe(1)
-    expect(result.retrievalHitRate).toBe(1)
+    expect(result.total).toBe(70)
+    expect(result.passed).toBeLessThan(result.total)
+    expect(result.contextRequired).toBe(30)
+    expect(result.contextIdentified).toBe(0)
+    expect(result.categories.find((category) => category.failureMode === 'direct_rule')?.passed).toBe(10)
   })
 })
