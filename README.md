@@ -5,7 +5,7 @@
 [![CI](https://github.com/internalforces/StoryOps/actions/workflows/ci.yml/badge.svg)](https://github.com/internalforces/StoryOps/actions/workflows/ci.yml)
 [![GitHub Pages](https://github.com/internalforces/StoryOps/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/internalforces/StoryOps/actions/workflows/deploy-pages.yml)
 
-[라이브 데모](https://internalforces.github.io/StoryOps/) · [1분 12초 시연 영상](docs/demo/storyops-demo.mp4) · [아키텍처](docs/ARCHITECTURE.md) · [문제 해결 사례](docs/CASE-STUDY.md) · [평가 보고서](docs/EVALUATION.md)
+[라이브 데모](https://internalforces.github.io/StoryOps/) · [시연 가이드](docs/DEMO.md) · [아키텍처](docs/ARCHITECTURE.md) · [문제 해결 사례](docs/CASE-STUDY.md) · [평가 보고서](docs/EVALUATION.md)
 
 ![StoryOps 연속성 검사 화면](docs/demo/04-continuity.png)
 
@@ -29,7 +29,7 @@
 | 콘텐츠 운영 | 작품·회차·인물·설정 CRUD, 초안/정본 상태, 공개 범위 |
 | 설정 추적 | 설정과 근거 정본 회차 연결, 관련 설정 검색 |
 | 연속성 검수 | 구조화된 충돌 후보, 신뢰도, 근거 회차, 승인·오탐 처리 |
-| 평가 | 정확도·정밀도·재현율·Hit@5·MRR·속도·비용 측정 |
+| 평가 | 합성 회귀셋 통과 건수·재현율·Hit@5·MRR·속도·비용 측정 |
 | 데이터 경계 | 원본 백업, 회차 분할, 안정 ID, 공개/비공개 파이프라인 |
 | 품질·배포 | Vitest 회귀 테스트, GitHub Actions, GitHub Pages |
 
@@ -59,12 +59,15 @@ npm run build
 npm run import:private -- ..
 ```
 
-가져오기는 완성본과 초안을 회차별로 분할하고 `private/data/manifest.private.json`을 생성합니다. `private/`는 Git에서 제외됩니다. 공개 전에는 [데이터 관리 원칙](docs/DATA-GOVERNANCE.md)의 점검 절차를 확인하세요.
+가져오기는 완성본과 초안을 회차별로 분할하고 `private/data/manifest.private.json`을 생성합니다. 개발 서버를 실행한 뒤 운영 현황의 **비공개 매니페스트 불러오기**에서 이 파일을 선택하면 실제 회차 메타데이터가 대시보드에 연결됩니다.
+
+파일은 브라우저에서만 읽으며 서버로 전송하지 않습니다. 대시보드에는 작품·회차·상태만 저장하고 원문, 원본 파일명, 해시, 로컬 경로는 버립니다. `private/`는 Git에서 제외됩니다. 공개 전에는 [데이터 관리 원칙](docs/DATA-GOVERNANCE.md)의 점검 절차를 확인하세요.
 
 ## 기술 구성
 
 - React + TypeScript + Vite
 - 설명 가능한 한글 토큰/2-gram 검색과 규칙 기반 충돌 후보 생성
+- 로컬 파일 선택 기반 비공개 매니페스트 연결
 - `localStorage` 기반 데모 CRUD 및 검수 상태 저장
 - Vitest 회귀 테스트
 - GitHub Actions + GitHub Pages

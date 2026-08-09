@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
-  Activity, Archive, BookOpen, Bot, Check, ChevronRight, CircleAlert, Clock3,
+  Activity, Archive, BookOpen, Check, ChevronRight, CircleAlert, Clock3,
   Database, FileCheck2, FileText, Gauge, GitBranch, LayoutDashboard, Menu,
-  Plus, RefreshCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, Users, X,
+  Plus, RefreshCcw, Search, Settings2, ShieldCheck, Sparkles, Trash2, Upload, Users, X,
 } from 'lucide-react'
 import { benchmarkCases } from './data/seed'
 import { useDatabase } from './hooks/useDatabase'
@@ -24,16 +24,37 @@ const labels: Record<View, { eyebrow: string; title: string; description: string
   overview: { eyebrow: 'STORY OPERATIONS', title: '서사의 맥락을 한곳에서', description: '초안부터 정본, 설정 근거와 검수 결과까지 추적합니다.' },
   content: { eyebrow: 'CONTENT', title: '작품과 회차', description: '원고 버전과 공개 범위를 안정적인 ID로 관리합니다.' },
   lore: { eyebrow: 'WORLD BIBLE', title: '인물과 설정', description: '설정을 구조화하고 처음 등장한 근거 회차에 연결합니다.' },
-  continuity: { eyebrow: 'CONTINUITY', title: 'AI 연속성 워크벤치', description: '새 원고에서 관련 설정을 찾고 검토 가능한 충돌 후보를 만듭니다.' },
+  continuity: { eyebrow: 'CONTINUITY', title: '규칙 기반 연속성 검사', description: '새 원고에서 관련 설정을 찾고 검토 가능한 충돌 후보를 만듭니다.' },
   evaluation: { eyebrow: 'EVALUATION', title: '품질 평가', description: '의도적 충돌과 정상 문장으로 검색·판정 품질을 회귀 테스트합니다.' },
 }
 
 export default function App() {
-  const { database, setDatabase, reset } = useDatabase()
+  const { database, setDatabase, reset, importPrivateManifest } = useDatabase()
   const [view, setView] = useState<View>('overview')
   const [mobileNav, setMobileNav] = useState(false)
   const [editor, setEditor] = useState<{ kind: EntityKind; id?: string } | null>(null)
+  const [importNotice, setImportNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const page = labels[view]
+  const workTitle = database.works[0]?.title ?? 'StoryOps'
+
+  const handleManifestFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const source = importPrivateManifest(await file.text())
+      setView('overview')
+      setImportNotice({ tone: 'success', text: `${source.uniqueEpisodes}개 회차 · ${source.episodeVersions}개 버전을 로컬에서 연결했습니다. 원문·파일명·해시는 저장하지 않았습니다.` })
+    } catch (error) {
+      setImportNotice({ tone: 'error', text: error instanceof Error ? error.message : '매니페스트를 불러오지 못했습니다.' })
+    }
+  }
+
+  const resetDemo = () => {
+    reset()
+    setImportNotice({ tone: 'success', text: '공개 합성 데모 데이터로 초기화했습니다.' })
+  }
 
   return (
     <div className="app-shell">
@@ -44,18 +65,19 @@ export default function App() {
           {navItems.map((item) => <button className={view === item.id ? 'active' : ''} onClick={() => { setView(item.id); setMobileNav(false) }} key={item.id}><item.icon size={18} /><span>{item.label}</span>{view === item.id && <ChevronRight size={16} />}</button>)}
         </nav>
         <div className="privacy-card"><ShieldCheck size={20} /><div><strong>원고 보호됨</strong><span>원문은 로컬 전용 저장소에서만 처리됩니다.</span></div></div>
-        <div className="sidebar-footer"><span className="status-dot" />공개 데모 · 합성 데이터</div>
+        <div className="sidebar-footer"><span className="status-dot" />{database.source.label}</div>
       </aside>
 
       <main>
         <header className="topbar">
           <button className="icon-button mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="메뉴"><Menu size={20} /></button>
-          <div className="breadcrumb"><span>황혼의 기록관</span><ChevronRight size={14} /><strong>{page.title}</strong></div>
+          <div className="breadcrumb"><span>{workTitle}</span><ChevronRight size={14} /><strong>{page.title}</strong></div>
           <div className="top-actions"><span className="sync-state"><span className="status-dot" />모든 변경 저장됨</span><button className="avatar" title="데모 사용자">SO</button></div>
         </header>
 
         <div className="page-wrap">
-          <div className="page-heading"><div><span className="eyebrow">{page.eyebrow}</span><h1>{page.title}</h1><p>{page.description}</p></div>{view !== 'continuity' && view !== 'evaluation' && <button className="secondary" onClick={reset}><RefreshCcw size={16} />데모 초기화</button>}</div>
+          <div className="page-heading"><div><span className="eyebrow">{page.eyebrow}</span><h1>{page.title}</h1><p>{page.description}</p></div>{view !== 'continuity' && view !== 'evaluation' && <div className="page-heading-actions">{view === 'overview' && <><input className="visually-hidden" ref={fileInput} type="file" accept="application/json,.json" onChange={handleManifestFile} /><button className="secondary" onClick={() => fileInput.current?.click()}><Upload size={16} />비공개 매니페스트 불러오기</button></>}<button className="secondary" onClick={resetDemo}><RefreshCcw size={16} />합성 데모 초기화</button></div>}</div>
+          {importNotice && <div className={`import-notice ${importNotice.tone}`} role="status"><ShieldCheck size={18} /><span>{importNotice.text}</span><button className="icon-button" onClick={() => setImportNotice(null)} aria-label="알림 닫기"><X size={15} /></button></div>}
           {view === 'overview' && <Overview database={database} onNavigate={setView} />}
           {view === 'content' && <ContentView database={database} onEdit={(kind, id) => setEditor({ kind, id })} />}
           {view === 'lore' && <LoreView database={database} onEdit={(kind, id) => setEditor({ kind, id })} />}
@@ -76,10 +98,10 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
   const recent = [...database.episodes].sort((a, b) => b.number - a.number).slice(0, 4)
   return <>
     <section className="stats-grid">
-      <StatCard icon={FileText} tone="sand" label="전체 회차" value={database.episodes.length} meta={`${canon} 정본 · ${draft} 초안`} />
+      <StatCard icon={FileText} tone="sand" label="회차 버전" value={database.episodes.length} meta={`${database.source.uniqueEpisodes}개 회차 · ${canon} 정본 · ${draft} 초안`} />
       <StatCard icon={Database} tone="sage" label="등록 설정" value={database.lore.length} meta={`${database.characters.length}명 인물 연결`} />
       <StatCard icon={CircleAlert} tone="coral" label="검토 기록" value={reviewCount} meta={reviewCount ? '사용자 판단 반영됨' : '새 원고를 검사해 보세요'} />
-      <StatCard icon={Activity} tone="blue" label="평가 정확도" value="100%" meta="합성 회귀셋 10건" />
+      <StatCard icon={Activity} tone="blue" label="회귀셋 통과" value={database.source.kind === 'synthetic' ? '10/10' : '미검증'} meta={database.source.kind === 'synthetic' ? '합성 문장 기준' : '설정 데이터 등록 필요'} />
     </section>
     <section className="overview-grid">
       <div className="panel progress-panel">
@@ -88,7 +110,7 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
           {[
             ['01', '백업과 분류', '원본 보존 · 공개 분리', true],
             ['02', '회차별 정리', '안정 ID · 상태 관리', true],
-            ['03', '설정 검색', '근거 회차 연결', true],
+            ['03', '설정 검색', '근거 회차 연결', database.lore.length > 0],
             ['04', '사용자 검수', '승인 · 오탐 피드백', reviewCount > 0],
           ].map(([number, title, note, done], index) => <div className="pipeline-step" key={String(number)}><div className={`step-marker ${done ? 'done' : ''}`}>{done ? <Check size={15} /> : number}</div><div><strong>{title}</strong><span>{note}</span></div>{index < 3 && <div className="step-line" />}</div>)}
         </div>
@@ -99,7 +121,7 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
         <div className="episode-list">{recent.map((episode) => <div className="episode-row" key={episode.id}><span className="episode-number">{String(episode.number).padStart(2, '0')}</span><div><strong>{episode.title}</strong><span>{episode.synopsis}</span></div><StateBadge state={episode.state} /></div>)}</div>
       </div>
     </section>
-    <section className="panel decision-panel"><div className="decision-icon"><Bot size={24} /></div><div><span className="kicker">WHY STORYOPS</span><h2>AI가 판정하고, 작가가 결정합니다.</h2><p>오류 후보에는 항상 설정 원문과 근거 회차가 따라옵니다. 승인과 오탐 판정은 저장되어 다음 검수의 맥락이 됩니다.</p></div><button className="secondary" onClick={() => onNavigate('evaluation')}>평가 리포트 <ChevronRight size={16} /></button></section>
+    <section className="panel decision-panel"><div className="decision-icon"><FileCheck2 size={24} /></div><div><span className="kicker">WHY STORYOPS</span><h2>규칙이 후보를 만들고, 작가가 결정합니다.</h2><p>오류 후보에는 항상 설정 원문과 근거 회차가 따라옵니다. 승인과 오탐 판정은 저장되어 다음 검수의 맥락이 됩니다.</p></div><button className="secondary" onClick={() => onNavigate('evaluation')}>평가 리포트 <ChevronRight size={16} /></button></section>
   </>
 }
 
@@ -137,13 +159,15 @@ function ContinuityView({ database, setDatabase }: { database: StoryDatabase; se
   const [hasRun, setHasRun] = useState(false)
   const issues = useMemo(() => hasRun ? inspectContinuity(text, database.lore, database.reviews) : [], [hasRun, text, database.lore, database.reviews])
   const chunks = text ? text.split(/\n+/).filter(Boolean).length : 0
+  const canInspect = database.lore.length > 0
   const setReview = (id: string, state: ReviewState) => setDatabase((current) => ({ ...current, reviews: { ...current.reviews, [id]: state } }))
   return <div className="continuity-grid">
     <section className="panel manuscript-panel"><div className="panel-heading"><div><span className="kicker">MANUSCRIPT</span><h2>검사할 원고</h2></div><span className="badge neutral">브라우저 내 처리</span></div>
       <textarea value={text} onChange={(event) => { setText(event.target.value); setHasRun(false) }} aria-label="검사할 원고" />
       <div className="editor-meta"><span>{text.length.toLocaleString()}자</span><span>{chunks}개 문단</span><span>설정 {database.lore.length}개 검색</span></div>
-      <button className="primary full" onClick={() => setHasRun(true)}><Sparkles size={18} />연속성 검사 실행</button>
-      <div className="process-note"><Bot size={20} /><div><strong>설명 가능한 검사</strong><span>문장 분할 → 관련 설정 검색 → 충돌 후보 생성 → 사용자 검수</span></div></div>
+      <button className="primary full" disabled={!canInspect} onClick={() => setHasRun(true)}><Sparkles size={18} />연속성 검사 실행</button>
+      {!canInspect && <div className="process-note warning"><CircleAlert size={20} /><div><strong>구조화된 설정이 필요합니다</strong><span>비공개 매니페스트는 회차 메타데이터만 연결합니다. 인물과 설정 화면에서 검사 규칙과 근거 회차를 등록해 주세요.</span></div></div>}
+      <div className="process-note"><FileCheck2 size={20} /><div><strong>설명 가능한 규칙 검사</strong><span>문장 분할 → 관련 설정 검색 → 충돌 표현 대조 → 사용자 검수</span></div></div>
     </section>
     <section className="panel results-panel"><div className="panel-heading"><div><span className="kicker">REVIEW QUEUE</span><h2>검사 결과</h2></div>{hasRun && <span className={`badge ${issues.length ? 'warning' : 'success'}`}>{issues.length ? `${issues.length}건 발견` : '충돌 없음'}</span>}</div>
       {!hasRun ? <EmptyState icon={Search} title="아직 검사하지 않았습니다" body="왼쪽 원고를 확인하고 연속성 검사를 실행하세요." /> : issues.length === 0 ? <EmptyState icon={Check} title="충돌 후보가 없습니다" body="현재 설정 기준으로 일관된 원고입니다." /> : <div className="issue-list">{issues.map((issue) => <article className={`issue-card ${issue.status}`} key={issue.id}><div className="issue-header"><span className={`severity ${issue.severity}`}>{issue.severity === 'high' ? '높음' : issue.severity === 'medium' ? '보통' : '낮음'}</span><span>신뢰도 {Math.round(issue.score * 100)}%</span><ReviewBadge state={issue.status} /></div><blockquote>{issue.sentence}</blockquote><p>{issue.explanation}</p><div className="evidence-box"><span><FileCheck2 size={15} />정본 근거</span><strong>{issue.evidence.statement}</strong><code>{issue.evidence.evidenceEpisodeIds.map((id) => episodeLabel(database, id)).join(', ')}</code></div><div className="review-actions"><button className={issue.status === 'approved' ? 'selected' : ''} onClick={() => setReview(issue.id, 'approved')}><Check size={15} />오류 승인</button><button className={issue.status === 'false_positive' ? 'selected' : ''} onClick={() => setReview(issue.id, 'false_positive')}><X size={15} />오탐 처리</button></div></article>)}</div>}
@@ -156,7 +180,7 @@ function EvaluationView({ database }: { database: StoryDatabase }) {
   const result = useMemo(() => runEvaluation(benchmarkCases, database.lore), [database.lore, runAt])
   return <div className="content-stack">
     <section className="evaluation-hero"><div><span className="eyebrow">REGRESSION SUITE</span><h2>검사 품질을 숫자로 확인합니다.</h2><p>충돌 5건과 정상 5건을 동일한 검색·판정 파이프라인에 통과시켰습니다.</p></div><button className="primary" onClick={() => setRunAt(Date.now())}><RefreshCcw size={17} />평가 다시 실행</button></section>
-    <section className="metrics-grid"><Metric label="정확도" value={`${Math.round(result.accuracy * 100)}%`} note={`${result.total}개 평가 문장`} /><Metric label="재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /><Metric label="실행 시간" value={`${result.latencyMs.toFixed(2)}ms`} note={`추정 비용 $${result.estimatedCostUsd.toFixed(4)}`} /></section>
+    <section className="metrics-grid"><Metric label="회귀셋 통과" value={`${result.truePositive + result.trueNegative}/${result.total}`} note="합성 문장 기준" /><Metric label="재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /><Metric label="실행 시간" value={`${result.latencyMs.toFixed(2)}ms`} note={`추정 비용 $${result.estimatedCostUsd.toFixed(4)}`} /></section>
     <section className="evaluation-grid"><div className="panel"><div className="panel-heading"><div><span className="kicker">TEST CASES</span><h2>문장별 결과</h2></div><span className="badge success"><Check size={13} />{result.truePositive + result.trueNegative}/{result.total} 통과</span></div><div className="eval-list">{result.rows.map((row) => { const pass = row.detected === row.expectedConflict; return <div className="eval-row" key={row.id}><span className={`eval-status ${pass ? 'pass' : 'fail'}`}>{pass ? <Check size={14} /> : <X size={14} />}</span><div><strong>{row.label}</strong><p>{row.sentence}</p></div><span className={`badge ${row.expectedConflict ? 'warning' : 'neutral'}`}>{row.expectedConflict ? '의도 충돌' : '정상'}</span><span className="rank">{row.retrievedRank ? `검색 #${row.retrievedRank}` : '—'}</span></div>})}</div></div>
       <div className="panel failure-panel"><div className="panel-heading"><div><span className="kicker">FAILURE ANALYSIS</span><h2>실패 유형</h2></div></div>{result.falsePositive + result.falseNegative === 0 ? <div className="perfect-state"><div><ShieldCheck size={30} /></div><h3>현재 회귀셋 통과</h3><p>등록된 표현 범위에서는 오탐과 누락이 없습니다. 실제 원고에서는 아래 위험을 계속 추적합니다.</p></div> : null}<div className="risk-list"><div><span>01</span><p><strong>간접 표현</strong>동의어나 비유가 충돌 사전에 없으면 누락될 수 있습니다.</p></div><div><span>02</span><p><strong>시간축 변화</strong>설정 변경 시점이 명시되지 않으면 정상 변화를 오류로 볼 수 있습니다.</p></div><div><span>03</span><p><strong>화자 신뢰성</strong>인물의 거짓말이나 추측은 문맥 없이는 판별하기 어렵습니다.</p></div></div></div>
     </section>

@@ -62,10 +62,21 @@ export interface BenchmarkCase {
   label: string
 }
 
+export interface DatabaseSource {
+  kind: 'synthetic' | 'private-manifest'
+  label: string
+  importedAt: string
+  episodeVersions: number
+  uniqueEpisodes: number
+  referenceDocuments: number
+  characterAssets: number
+}
+
 export interface Database {
   works: Work[]
   episodes: Episode[]
   characters: Character[]
   lore: Lore[]
   reviews: Record<string, ReviewState>
+  source: DatabaseSource
 }

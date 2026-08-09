@@ -3,6 +3,15 @@ import type { BenchmarkCase, Database } from '../types'
 const now = '2026-08-09T09:00:00.000Z'
 
 export const seedDatabase: Database = {
+  source: {
+    kind: 'synthetic',
+    label: '공개 데모 · 합성 데이터',
+    importedAt: now,
+    episodeVersions: 4,
+    uniqueEpisodes: 4,
+    referenceDocuments: 0,
+    characterAssets: 0,
+  },
   works: [
     {
       id: 'twilight-archive',
