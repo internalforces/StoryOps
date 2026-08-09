@@ -1,0 +1,52 @@
+name: 버그 제보
+description: 재현 가능한 문제를 알려 주세요.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제보해 주셔서 감사합니다. 실제 원고, 개인 정보, 자격 증명은 첨부하지 마세요.
+  - type: textarea
+    id: summary
+    attributes:
+      label: 문제 요약
+      description: 어떤 문제가 발생했는지 간단히 설명해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 문제를 다시 확인할 수 있는 단계를 순서대로 적어 주세요.
+      placeholder: |
+        1. ... 화면으로 이동
+        2. ... 버튼 선택
+        3. ... 오류 확인
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상 결과
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 실행 환경
+      description: 운영체제와 브라우저 이름 및 버전을 적어 주세요.
+      placeholder: macOS 15 / Chrome 138
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 데이터 확인
+      options:
+        - label: 실제 원고, 개인 정보, API 키나 자격 증명을 포함하지 않았습니다.
+          required: true
