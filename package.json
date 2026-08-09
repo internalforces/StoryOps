@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "import:private": "node scripts/import-manuscripts.mjs",
+    "evaluate:private": "node scripts/validate-private-evaluation.mjs",
     "evaluate": "vitest run src/lib/continuity.test.ts"
   },
   "dependencies": {

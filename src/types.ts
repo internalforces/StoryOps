@@ -54,12 +54,41 @@ export interface ContinuityIssue {
   status: ReviewState
 }
 
+export type EvaluationOutcome = 'conflict' | 'consistent' | 'context_required'
+export type EvaluationFailureMode =
+  | 'direct_rule'
+  | 'indirect_expression'
+  | 'temporal_change'
+  | 'flashback_context'
+  | 'intentional_lie'
+  | 'unreliable_or_altered_memory'
+  | 'alias_resolution'
+
+export interface EvaluationContext {
+  timeline: 'current' | 'past' | 'transition' | 'unknown'
+  speechType: 'narration' | 'dialogue' | 'reported_speech'
+  reliability: 'reliable' | 'deceptive' | 'uncertain'
+}
+
 export interface BenchmarkCase {
   id: string
   sentence: string
-  expectedConflict: boolean
+  expectedOutcome: EvaluationOutcome
   expectedLoreId?: string
   label: string
+  failureMode: EvaluationFailureMode
+  context: EvaluationContext
+  aliases?: string[]
+}
+
+export interface DatabaseSource {
+  kind: 'synthetic' | 'private-manifest'
+  label: string
+  importedAt: string
+  episodeVersions: number
+  uniqueEpisodes: number
+  referenceDocuments: number
+  characterAssets: number
 }
 
 export interface Database {
@@ -68,4 +97,5 @@ export interface Database {
   characters: Character[]
   lore: Lore[]
   reviews: Record<string, ReviewState>
+  source: DatabaseSource
 }

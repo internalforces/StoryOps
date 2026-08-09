@@ -9,7 +9,8 @@ const sourceRoot = path.resolve(process.argv[2] ?? path.join(repoRoot, '..'))
 const novelRoot = path.join(sourceRoot, '웹소설')
 const characterRoot = path.join(sourceRoot, '등장인물')
 const privateRoot = path.join(repoRoot, 'private', 'data')
-const workId = 'joseon-future'
+const workId = process.env.STORYOPS_WORK_ID ?? 'private-work'
+const workTitle = process.env.STORYOPS_WORK_TITLE ?? path.basename(sourceRoot)
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 const pad = (value) => String(value).padStart(4, '0')
@@ -104,7 +105,7 @@ if (duplicateIds.length) {
 const manifest = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
-  work: { id: workId, title: '조선에 떨어진 미래', visibility: 'private' },
+  work: { id: workId, title: workTitle, visibility: 'private' },
   sources: { manuscriptRoot: novelRoot, characterAssetRoot: characterRoot },
   episodes: records,
   references,
