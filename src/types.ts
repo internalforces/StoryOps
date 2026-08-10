@@ -40,6 +40,8 @@ export interface Lore {
   value: string
   statement: string
   conflictingTerms: string[]
+  aliases?: string[]
+  semanticPatterns?: string[]
   evidenceEpisodeIds: string[]
   visibility: Visibility
 }
@@ -52,6 +54,8 @@ export interface ContinuityIssue {
   evidence: Lore
   score: number
   status: ReviewState
+  outcome: 'conflict' | 'context_required'
+  contextReason?: string
 }
 
 export type EvaluationOutcome = 'conflict' | 'consistent' | 'context_required'
@@ -82,13 +86,16 @@ export interface BenchmarkCase {
 }
 
 export interface DatabaseSource {
-  kind: 'synthetic' | 'private-manifest'
+  kind: 'synthetic' | 'scale-demo' | 'private-manifest'
   label: string
   importedAt: string
   episodeVersions: number
   uniqueEpisodes: number
   referenceDocuments: number
   characterAssets: number
+  loreCandidates?: number
+  integrityWarnings?: number
+  processingMs?: number
 }
 
 export interface Database {

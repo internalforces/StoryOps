@@ -1,30 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { seedDatabase } from '../data/seed'
+import { createScaleDemoDatabase } from '../data/scaleDemo'
+import { loadDatabase, saveDatabase } from '../lib/databaseStore'
 import { parsePrivateManifest } from '../lib/privateManifest'
 import type { Database } from '../types'
 
-const STORAGE_KEY = 'storyops-database-v1'
-
 export function useDatabase() {
-  const [database, setDatabase] = useState<Database>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      const parsed = saved ? JSON.parse(saved) as Partial<Database> : null
-      return parsed ? { ...parsed, source: parsed.source ?? structuredClone(seedDatabase.source) } as Database : structuredClone(seedDatabase)
-    } catch {
-      return structuredClone(seedDatabase)
-    }
-  })
+  const [database, setDatabase] = useState<Database>(() => structuredClone(seedDatabase))
+  const hydrated = useRef(false)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(database))
+    let active = true
+    void loadDatabase().then((saved) => {
+      if (active && saved) setDatabase(saved)
+      hydrated.current = true
+    })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (hydrated.current) void saveDatabase(database)
   }, [database])
 
   const reset = () => setDatabase(structuredClone(seedDatabase))
+  const loadScaleDemo = () => setDatabase(createScaleDemoDatabase())
   const importPrivateManifest = (contents: string) => {
     const imported = parsePrivateManifest(contents)
     setDatabase(imported)
     return imported.source
   }
-  return { database, setDatabase, reset, importPrivateManifest }
+  return { database, setDatabase, reset, loadScaleDemo, importPrivateManifest }
 }

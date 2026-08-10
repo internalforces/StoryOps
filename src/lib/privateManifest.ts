@@ -1,4 +1,4 @@
-import type { Database, DatabaseSource, Episode, EpisodeState } from '../types'
+import type { Database, DatabaseSource, Episode, EpisodeState, Lore } from '../types'
 
 type JsonRecord = Record<string, unknown>
 
@@ -39,6 +39,24 @@ function episodeFromRecord(value: unknown, workId: string, importedAt: string): 
   }
 }
 
+function loreFromRecord(value: unknown, workId: string): Lore {
+  if (!isRecord(value)) throw new Error('설정 후보 레코드 형식이 올바르지 않습니다.')
+  return {
+    id: requiredString(value, 'id'),
+    workId,
+    category: '규칙',
+    subject: requiredString(value, 'subject'),
+    attribute: '검토 필요',
+    value: '미확정',
+    statement: requiredString(value, 'statement'),
+    aliases: [],
+    conflictingTerms: [],
+    semanticPatterns: [],
+    evidenceEpisodeIds: [],
+    visibility: 'private',
+  }
+}
+
 export function parsePrivateManifest(input: string | unknown): Database {
   let parsed: unknown
   try {
@@ -55,6 +73,7 @@ export function parsePrivateManifest(input: string | unknown): Database {
   const importedAt = typeof parsed.generatedAt === 'string' ? parsed.generatedAt : new Date().toISOString()
   const episodeValues = optionalArray(parsed, 'episodes')
   const episodes = episodeValues.map((episode) => episodeFromRecord(episode, workId, importedAt))
+  const lore = optionalArray(parsed, 'loreCandidates').map((candidate) => loreFromRecord(candidate, workId))
   const ids = new Set(episodes.map((episode) => episode.id))
   if (ids.size !== episodes.length) throw new Error('중복된 회차 ID가 있습니다.')
 
@@ -66,6 +85,8 @@ export function parsePrivateManifest(input: string | unknown): Database {
     uniqueEpisodes: new Set(episodes.map((episode) => episode.number)).size,
     referenceDocuments: optionalArray(parsed, 'references').length,
     characterAssets: optionalArray(parsed, 'characterAssets').length,
+    loreCandidates: lore.length,
+    integrityWarnings: optionalArray(parsed, 'warnings').length,
   }
 
   return {
@@ -79,7 +100,7 @@ export function parsePrivateManifest(input: string | unknown): Database {
     }],
     episodes,
     characters: [],
-    lore: [],
+    lore,
     reviews: {},
   }
 }

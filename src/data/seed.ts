@@ -56,26 +56,31 @@ export const seedDatabase: Database = {
     {
       id: 'lore-moon-gate-time', workId: 'twilight-archive', category: '규칙', subject: '월문', attribute: '개방 시간', value: '자정',
       statement: '월문은 자정 종이 울린 뒤 일 분 동안만 열린다.', conflictingTerms: ['한낮', '정오', '아침'],
+      aliases: ['달의 문', '은빛 관문'], semanticPatterns: ['태양이 머리 위', '햇빛이 가장 강', '낮에 열'],
       evidenceEpisodeIds: ['twilight-archive-ep-0002-canon'], visibility: 'public',
     },
     {
       id: 'lore-yoonseul-eyes', workId: 'twilight-archive', category: '인물', subject: '윤슬', attribute: '눈 색', value: '은빛',
       statement: '윤슬의 두 눈은 달빛을 머금은 은빛이다.', conflictingTerms: ['검은 눈', '푸른 눈', '갈색 눈'],
+      aliases: ['견습 기록관'], semanticPatterns: ['먹빛처럼 짙', '달 없는 밤처럼 어두'],
       evidenceEpisodeIds: ['twilight-archive-ep-0001-canon'], visibility: 'public',
     },
     {
       id: 'lore-south-tower-windows', workId: 'twilight-archive', category: '장소', subject: '남쪽 탑', attribute: '창문', value: '없음',
       statement: '남쪽 탑에는 창문이 하나도 없다.', conflictingTerms: ['창문을 열', '창문 너머', '창가'],
+      aliases: ['남탑'], semanticPatterns: ['투명한 유리 구멍', '벽 틈으로 바람', '벽 틈으로 햇빛'],
       evidenceEpisodeIds: ['twilight-archive-ep-0002-canon'], visibility: 'public',
     },
     {
       id: 'lore-swallow-rain', workId: 'twilight-archive', category: '규칙', subject: '먹제비', attribute: '빗속 비행', value: '불가능',
       statement: '먹제비는 비에 젖으면 날지 못한다.', conflictingTerms: ['빗속을 날', '폭우를 뚫고', '비를 맞으며 날'],
+      aliases: ['먹빛 제비'], semanticPatterns: ['소나기 속에서', '젖은 깃털로 구름', '젖은 날개로 날'],
       evidenceEpisodeIds: ['twilight-archive-ep-0003-canon'], visibility: 'public',
     },
     {
       id: 'lore-compass-direction', workId: 'twilight-archive', category: '도구', subject: '기억나침반', attribute: '지시 대상', value: '잃어버린 기억',
       statement: '기억나침반은 북쪽이 아니라 주인이 잃어버린 기억을 가리킨다.', conflictingTerms: ['항상 북쪽', '언제나 북쪽', '북쪽을 향', '자북극', '남쪽만'],
+      aliases: ['기억의 바늘'], semanticPatterns: ['북극성 쪽에 고정', '같은 방위를 가리'],
       evidenceEpisodeIds: ['twilight-archive-ep-0001-canon'], visibility: 'public',
     },
   ],
