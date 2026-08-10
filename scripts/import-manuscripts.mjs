@@ -55,7 +55,21 @@ const sourceFiles = await listFiles(novelRoot)
 const characterFiles = await listFiles(characterRoot)
 const records = []
 const references = []
+const loreCandidates = []
 const warnings = []
+
+function extractHeadingCandidates(content, referenceId) {
+  return [...content.matchAll(/^#{1,4}\s+(.+)$/gm)]
+    .map((match) => match[1].replace(/[*_`]/g, '').trim())
+    .filter((heading) => heading.length >= 2 && heading.length <= 80)
+    .slice(0, 20)
+    .map((heading, index) => ({
+      id: `${referenceId}-candidate-${String(index + 1).padStart(2, '0')}`,
+      subject: heading,
+      statement: `비공개 참고 문서의 “${heading}” 섹션에서 추출한 설정 후보`,
+      sourceReferenceId: referenceId,
+    }))
+}
 
 for (const filename of sourceFiles) {
   if (!filename.endsWith('.md')) continue
@@ -68,6 +82,7 @@ for (const filename of sourceFiles) {
     const target = path.join(privateRoot, 'references', `${id}.md`)
     await writeFile(target, content)
     references.push({ id, kind: 'reference', source: filename, sha256: sha256(content) })
+    loreCandidates.push(...extractHeadingCandidates(content, id))
     continue
   }
 
@@ -109,6 +124,7 @@ const manifest = {
   sources: { manuscriptRoot: novelRoot, characterAssetRoot: characterRoot },
   episodes: records,
   references,
+  loreCandidates,
   characterAssets: await Promise.all(characterFiles.map(async (filename) => {
     const bytes = await readFile(path.join(characterRoot, filename))
     return {
@@ -136,6 +152,7 @@ const publicSummary = {
   draftVersions: counts.draft,
   canonVersions: counts.canon,
   referenceDocuments: references.length,
+  extractedLoreCandidates: loreCandidates.length,
   privateCharacterAssets: characterFiles.length,
   rawTextPublished: false,
   note: '원고와 파생 데이터는 private/에만 저장되며 공개 저장소에서 제외됩니다.',

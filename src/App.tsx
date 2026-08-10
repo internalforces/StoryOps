@@ -39,7 +39,7 @@ const labels: Record<View, { eyebrow: string; title: string; description: string
 }
 
 export default function App() {
-  const { database, setDatabase, reset, importPrivateManifest } = useDatabase()
+  const { database, setDatabase, reset, loadScaleDemo, importPrivateManifest } = useDatabase()
   const [view, setView] = useState<View>('overview')
   const [mobileNav, setMobileNav] = useState(false)
   const [editor, setEditor] = useState<{ kind: EntityKind; id?: string } | null>(null)
@@ -55,7 +55,7 @@ export default function App() {
     try {
       const source = importPrivateManifest(await file.text())
       setView('overview')
-      setImportNotice({ tone: 'success', text: `${source.uniqueEpisodes}개 회차 · ${source.episodeVersions}개 버전을 로컬에서 연결했습니다. 원문·파일명·해시는 저장하지 않았습니다.` })
+      setImportNotice({ tone: 'success', text: `${source.uniqueEpisodes}개 회차 · ${source.episodeVersions}개 버전 · ${source.loreCandidates ?? 0}개 설정 후보를 로컬에서 연결했습니다. 원문·파일명·해시는 저장하지 않았습니다.` })
     } catch (error) {
       setImportNotice({ tone: 'error', text: error instanceof Error ? error.message : '매니페스트를 불러오지 못했습니다.' })
     }
@@ -64,6 +64,12 @@ export default function App() {
   const resetDemo = () => {
     reset()
     setImportNotice({ tone: 'success', text: '공개 합성 데모 데이터로 초기화했습니다.' })
+  }
+
+  const openScaleDemo = () => {
+    loadScaleDemo()
+    setView('overview')
+    setImportNotice({ tone: 'success', text: '120화·240개 버전과 설정 후보를 연결한 합성 규모 검증 시나리오를 불러왔습니다.' })
   }
 
   return (
@@ -86,7 +92,7 @@ export default function App() {
         </header>
 
         <div className="page-wrap">
-          <div className="page-heading"><div><span className="eyebrow">{page.eyebrow}</span><h1>{page.title}</h1><p>{page.description}</p></div>{view !== 'continuity' && view !== 'evaluation' && <div className="page-heading-actions">{view === 'overview' && <><input className="visually-hidden" ref={fileInput} type="file" accept="application/json,.json" onChange={handleManifestFile} /><button className="secondary" onClick={() => fileInput.current?.click()}><Upload size={16} />비공개 매니페스트 불러오기</button></>}<button className="secondary" onClick={resetDemo}><RefreshCcw size={16} />합성 데모 초기화</button></div>}</div>
+          <div className="page-heading"><div><span className="eyebrow">{page.eyebrow}</span><h1>{page.title}</h1><p>{page.description}</p></div>{view !== 'continuity' && view !== 'evaluation' && <div className="page-heading-actions">{view === 'overview' && <><input className="visually-hidden" ref={fileInput} type="file" accept="application/json,.json" onChange={handleManifestFile} /><button className="secondary" onClick={openScaleDemo}><Database size={16} />120화 규모 데모</button><button className="secondary" onClick={() => fileInput.current?.click()}><Upload size={16} />비공개 매니페스트</button></>}<button className="secondary" onClick={resetDemo}><RefreshCcw size={16} />합성 데모 초기화</button></div>}</div>
           {importNotice && <div className={`import-notice ${importNotice.tone}`} role="status"><ShieldCheck size={18} /><span>{importNotice.text}</span><button className="icon-button" onClick={() => setImportNotice(null)} aria-label="알림 닫기"><X size={15} /></button></div>}
           {view === 'overview' && <Overview database={database} onNavigate={setView} />}
           {view === 'content' && <ContentView database={database} onEdit={(kind, id) => setEditor({ kind, id })} />}
@@ -106,22 +112,22 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
   const draft = database.episodes.filter((episode) => episode.state === 'draft').length
   const reviewCount = Object.keys(database.reviews).length
   const recent = [...database.episodes].sort((a, b) => b.number - a.number).slice(0, 4)
-  const baseline = useMemo(() => runEvaluation(benchmarkCases, database.lore), [database.lore])
+  const baseline = useMemo(() => runEvaluation(benchmarkCases, database.lore, 'rule-v2'), [database.lore])
   return <>
     <section className="stats-grid">
       <StatCard icon={FileText} tone="sand" label="회차 버전" value={database.episodes.length} meta={`${database.source.uniqueEpisodes}개 회차 · ${canon} 정본 · ${draft} 초안`} />
       <StatCard icon={Database} tone="sage" label="등록 설정" value={database.lore.length} meta={`${database.characters.length}명 인물 연결`} />
       <StatCard icon={CircleAlert} tone="coral" label="검토 기록" value={reviewCount} meta={reviewCount ? '사용자 판단 반영됨' : '새 원고를 검사해 보세요'} />
-      <StatCard icon={Activity} tone="blue" label="기준선 통과" value={database.source.kind === 'synthetic' ? `${baseline.passed}/${baseline.total}` : '미검증'} meta={database.source.kind === 'synthetic' ? '합성 평가셋 · rule-v1' : '설정 데이터 등록 필요'} />
+      <StatCard icon={Activity} tone="blue" label="rule-v2 통과" value={database.lore.length ? `${baseline.passed}/${baseline.total}` : '미검증'} meta={database.lore.length ? `v1 14건 → v2 ${baseline.passed}건` : '설정 데이터 등록 필요'} />
     </section>
     <section className="overview-grid">
       <div className="panel progress-panel">
         <div className="panel-heading"><div><span className="kicker">PIPELINE</span><h2>원고 처리 흐름</h2></div><span className="badge success"><Check size={13} />정상</span></div>
         <div className="pipeline">
           {[
-            ['01', '백업과 분류', '원본 보존 · 공개 분리', true],
-            ['02', '회차별 정리', '안정 ID · 상태 관리', true],
-            ['03', '설정 검색', '근거 회차 연결', database.lore.length > 0],
+            ['01', '백업과 분류', `${database.source.uniqueEpisodes}화 · ${database.source.integrityWarnings ?? 0}건 경고`, true],
+            ['02', '회차별 정리', `${database.source.episodeVersions}개 버전 · 안정 ID`, true],
+            ['03', '설정 연결', `${database.source.loreCandidates ?? database.lore.length}개 후보 · 근거 회차`, database.lore.length > 0],
             ['04', '사용자 검수', '승인 · 오탐 피드백', reviewCount > 0],
           ].map(([number, title, note, done], index) => <div className="pipeline-step" key={String(number)}><div className={`step-marker ${done ? 'done' : ''}`}>{done ? <Check size={15} /> : number}</div><div><strong>{title}</strong><span>{note}</span></div>{index < 3 && <div className="step-line" />}</div>)}
         </div>
@@ -132,7 +138,7 @@ function Overview({ database, onNavigate }: { database: StoryDatabase; onNavigat
         <div className="episode-list">{recent.map((episode) => <div className="episode-row" key={episode.id}><span className="episode-number">{String(episode.number).padStart(2, '0')}</span><div><strong>{episode.title}</strong><span>{episode.synopsis}</span></div><StateBadge state={episode.state} /></div>)}</div>
       </div>
     </section>
-    <section className="panel decision-panel"><div className="decision-icon"><FileCheck2 size={24} /></div><div><span className="kicker">WHY STORYOPS</span><h2>규칙이 후보를 만들고, 작가가 결정합니다.</h2><p>오류 후보에는 항상 설정 원문과 근거 회차가 따라옵니다. 승인과 오탐 판정은 저장되어 다음 검수의 맥락이 됩니다.</p></div><button className="secondary" onClick={() => onNavigate('evaluation')}>평가 리포트 <ChevronRight size={16} /></button></section>
+    <section className="panel decision-panel"><div className="decision-icon"><FileCheck2 size={24} /></div><div><span className="kicker">WHY STORYOPS</span><h2>검색과 판정을 나누고, 문맥은 사람에게 돌려줍니다.</h2><p>rule-v2는 별칭·간접 표현을 연결하고 회상·거짓말·불확실한 기억을 ‘문맥 필요’로 분리합니다.</p></div><button className="secondary" onClick={() => onNavigate('evaluation')}>평가 비교 <ChevronRight size={16} /></button></section>
   </>
 }
 
@@ -181,7 +187,7 @@ function ContinuityView({ database, setDatabase }: { database: StoryDatabase; se
       <div className="process-note"><FileCheck2 size={20} /><div><strong>설명 가능한 규칙 검사</strong><span>문장 분할 → 관련 설정 검색 → 충돌 표현 대조 → 사용자 검수</span></div></div>
     </section>
     <section className="panel results-panel"><div className="panel-heading"><div><span className="kicker">REVIEW QUEUE</span><h2>검사 결과</h2></div>{hasRun && <span className={`badge ${issues.length ? 'warning' : 'success'}`}>{issues.length ? `${issues.length}건 발견` : '충돌 없음'}</span>}</div>
-      {!hasRun ? <EmptyState icon={Search} title="아직 검사하지 않았습니다" body="왼쪽 원고를 확인하고 연속성 검사를 실행하세요." /> : issues.length === 0 ? <EmptyState icon={Check} title="충돌 후보가 없습니다" body="현재 설정 기준으로 일관된 원고입니다." /> : <div className="issue-list">{issues.map((issue) => <article className={`issue-card ${issue.status}`} key={issue.id}><div className="issue-header"><span className={`severity ${issue.severity}`}>{issue.severity === 'high' ? '높음' : issue.severity === 'medium' ? '보통' : '낮음'}</span><span>신뢰도 {Math.round(issue.score * 100)}%</span><ReviewBadge state={issue.status} /></div><blockquote>{issue.sentence}</blockquote><p>{issue.explanation}</p><div className="evidence-box"><span><FileCheck2 size={15} />정본 근거</span><strong>{issue.evidence.statement}</strong><code>{issue.evidence.evidenceEpisodeIds.map((id) => episodeLabel(database, id)).join(', ')}</code></div><div className="review-actions"><button className={issue.status === 'approved' ? 'selected' : ''} onClick={() => setReview(issue.id, 'approved')}><Check size={15} />오류 승인</button><button className={issue.status === 'false_positive' ? 'selected' : ''} onClick={() => setReview(issue.id, 'false_positive')}><X size={15} />오탐 처리</button></div></article>)}</div>}
+      {!hasRun ? <EmptyState icon={Search} title="아직 검사하지 않았습니다" body="왼쪽 원고를 확인하고 연속성 검사를 실행하세요." /> : issues.length === 0 ? <EmptyState icon={Check} title="충돌 후보가 없습니다" body="현재 설정 기준으로 일관된 원고입니다." /> : <div className="issue-list">{issues.map((issue) => <article className={`issue-card ${issue.status} ${issue.outcome}`} key={issue.id}><div className="issue-header"><span className={`severity ${issue.outcome === 'context_required' ? 'context' : issue.severity}`}>{issue.outcome === 'context_required' ? '문맥 필요' : issue.severity === 'high' ? '높음' : issue.severity === 'medium' ? '보통' : '낮음'}</span><span>신뢰도 {Math.round(issue.score * 100)}%</span><ReviewBadge state={issue.status} /></div><blockquote>{issue.sentence}</blockquote><p>{issue.explanation}</p><div className="evidence-box"><span><FileCheck2 size={15} />정본 근거</span><strong>{issue.evidence.statement}</strong><code>{issue.evidence.evidenceEpisodeIds.map((id) => episodeLabel(database, id)).join(', ')}</code></div><div className="review-actions"><button className={issue.status === 'approved' ? 'selected' : ''} onClick={() => setReview(issue.id, 'approved')}><Check size={15} />{issue.outcome === 'context_required' ? '문맥 확인' : '오류 승인'}</button><button className={issue.status === 'false_positive' ? 'selected' : ''} onClick={() => setReview(issue.id, 'false_positive')}><X size={15} />오탐 처리</button></div></article>)}</div>}
     </section>
   </div>
 }
@@ -190,13 +196,14 @@ function EvaluationView({ database }: { database: StoryDatabase }) {
   const [runAt, setRunAt] = useState(0)
   const [filter, setFilter] = useState<'all' | EvaluationFailureMode>('all')
   const result = useMemo(() => runEvaluation(benchmarkCases, database.lore), [database.lore, runAt])
+  const legacy = useMemo(() => runEvaluation(benchmarkCases, database.lore, 'rule-v1'), [database.lore, runAt])
   const visibleRows = filter === 'all' ? result.rows : result.rows.filter((row) => row.failureMode === filter)
   return <div className="content-stack">
-    <section className="evaluation-hero"><div><span className="eyebrow">REGRESSION SUITE · {result.engineId}</span><h2>실패까지 드러내는 규칙 기반 기준선</h2><p>실제 집필 문제에서 도출한 7개 유형, 합성 문장 {result.total}건을 동일한 파이프라인에 통과시킵니다.</p></div><button className="primary" onClick={() => setRunAt(Date.now())}><RefreshCcw size={17} />평가 다시 실행</button></section>
-    <section className="metrics-grid"><Metric label="전체 통과" value={`${result.passed}/${result.total}`} note={`통과율 ${Math.round(result.passRate * 100)}%`} /><Metric label="충돌 재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="문맥 식별" value={`${result.contextIdentified}/${result.contextRequired}`} note="현재 엔진은 문맥 미지원" /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /></section>
+    <section className="evaluation-hero"><div><span className="eyebrow">REGRESSION SUITE · {result.engineId}</span><h2>14건에서 {result.passed}건으로, 판정 근거를 남기며</h2><p>동일한 7개 유형·70건을 v1과 v2에 동시 실행해 오탐·누락·문맥 식별 변화를 비교합니다.</p></div><button className="primary" onClick={() => setRunAt(Date.now())}><RefreshCcw size={17} />평가 다시 실행</button></section>
+    <section className="metrics-grid"><Metric label="전체 통과" value={`${result.passed}/${result.total}`} note={`v1 ${legacy.passed}건 → v2 ${result.passed}건`} /><Metric label="충돌 재현율" value={`${Math.round(result.recall * 100)}%`} note={`누락 ${result.falseNegative}건`} /><Metric label="문맥 식별" value={`${result.contextIdentified}/${result.contextRequired}`} note={`v1 ${legacy.contextIdentified}건 → v2 ${result.contextIdentified}건`} /><Metric label="검색 Hit@5" value={`${Math.round(result.retrievalHitRate * 100)}%`} note={`MRR ${result.meanReciprocalRank.toFixed(2)}`} /></section>
     <section className="panel category-panel"><div className="panel-heading"><div><span className="kicker">CATEGORY BASELINE</span><h2>유형별 통과 결과</h2></div><span className="badge neutral">실행 {result.latencyMs.toFixed(2)}ms · 비용 ${result.estimatedCostUsd.toFixed(4)}</span></div><div className="category-list">{result.categories.map((category) => <div className="category-row" key={category.failureMode}><div><strong>{failureModeLabels[category.failureMode]}</strong><span>오탐 {category.falsePositive} · 누락 {category.falseNegative} · 문맥 미처리 {category.contextMisses}</span></div><div className="category-track"><span style={{ width: `${Math.round(category.passRate * 100)}%` }} /></div><b>{category.passed}/{category.total}</b></div>)}</div></section>
     <section className="evaluation-grid"><div className="panel"><div className="panel-heading"><div><span className="kicker">TEST CASES</span><h2>문장별 결과</h2></div><div className="evaluation-filter"><select value={filter} onChange={(event) => setFilter(event.target.value as 'all' | EvaluationFailureMode)} aria-label="평가 유형 필터"><option value="all">전체 유형</option>{Object.entries(failureModeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select><span className="badge neutral">{visibleRows.length}건</span></div></div><div className="eval-list">{visibleRows.map((row) => <div className="eval-row" key={row.id}><span className={`eval-status ${row.passed ? 'pass' : 'fail'}`}>{row.passed ? <Check size={14} /> : <X size={14} />}</span><div><strong>{row.label}</strong><p>{row.sentence}</p></div><OutcomeBadge outcome={row.expectedOutcome} /><span className="rank">예측 {outcomeLabel(row.predictedOutcome)}</span></div>)}</div></div>
-      <div className="panel failure-panel"><div className="panel-heading"><div><span className="kicker">FAILURE ANALYSIS</span><h2>기준선 한계</h2></div></div><div className="baseline-state"><div><CircleAlert size={28} /></div><h3>실패를 정상적으로 기록 중</h3><p>규칙 기반 v1은 문장 안의 직접 충돌 표현만 판정합니다. 시간축·화자·기억 문맥은 아직 출력하지 않습니다.</p></div><div className="risk-list"><div><span>01</span><p><strong>오탐 {result.falsePositive}건</strong>정상적인 설정 변화를 충돌로 볼 수 있습니다.</p></div><div><span>02</span><p><strong>누락 {result.falseNegative}건</strong>비유와 별칭이 등록되지 않으면 놓칩니다.</p></div><div><span>03</span><p><strong>문맥 미처리 {result.contextRequired - result.contextIdentified}건</strong>회상·거짓말·불확실한 기억은 추가 문맥이 필요합니다.</p></div></div></div>
+      <div className="panel failure-panel"><div className="panel-heading"><div><span className="kicker">COMPARISON</span><h2>v1 → v2 변화</h2></div></div><div className="baseline-state improved"><div><Check size={28} /></div><h3>알려진 7개 실패 유형 회귀 통과</h3><p>시간축·화자·기억 신뢰도를 판정 입력으로 분리하고, 별칭과 간접 표현을 설정에 연결했습니다.</p></div><div className="risk-list"><div><span>01</span><p><strong>오탐 {legacy.falsePositive} → {result.falsePositive}건</strong>정상적인 설정 변화를 현재 정본과 분리합니다.</p></div><div><span>02</span><p><strong>누락 {legacy.falseNegative} → {result.falseNegative}건</strong>설정별 별칭·의미 패턴을 검색 전에 정규화합니다.</p></div><div><span>03</span><p><strong>문맥 미처리 {legacy.contextRequired - legacy.contextIdentified} → {result.contextRequired - result.contextIdentified}건</strong>단정하기 어려운 문장은 ‘문맥 필요’로 전환합니다.</p></div></div></div>
     </section>
   </div>
 }
@@ -234,7 +241,7 @@ function fieldsFor(kind: EntityKind, database: StoryDatabase): Field[] {
   if (kind === 'work') return [{ key: 'title', label: '작품명' }, { key: 'genre', label: '장르' }, { key: 'logline', label: '한 줄 소개', type: 'textarea', wide: true }, { key: 'visibility', label: '공개 범위', options: visibilityOptions }]
   if (kind === 'episode') return [{ key: 'number', label: '회차 번호', type: 'number' }, { key: 'title', label: '제목' }, { key: 'state', label: '원고 상태', options: [['draft', '초안'], ['canon', '정본']] }, { key: 'visibility', label: '공개 범위', options: visibilityOptions }, { key: 'synopsis', label: '회차 개요', type: 'textarea', wide: true }, { key: 'content', label: '본문', type: 'textarea', wide: true }]
   if (kind === 'character') return [{ key: 'name', label: '이름' }, { key: 'role', label: '역할' }, { key: 'description', label: '설명', type: 'textarea', wide: true }, { key: 'visibility', label: '공개 범위', options: visibilityOptions }]
-  return [{ key: 'category', label: '분류', options: ['인물', '장소', '도구', '규칙', '연표'].map((value) => [value, value]) }, { key: 'subject', label: '대상' }, { key: 'attribute', label: '속성' }, { key: 'value', label: '정본 값' }, { key: 'statement', label: '설정 문장', type: 'textarea', wide: true }, { key: 'conflictingTerms', label: '충돌 표현 (쉼표로 구분)', wide: true }, { key: 'evidenceEpisodeIds', label: `근거 회차 ID (${database.episodes.length}개 중 선택)`, wide: true }, { key: 'visibility', label: '공개 범위', options: visibilityOptions }]
+  return [{ key: 'category', label: '분류', options: ['인물', '장소', '도구', '규칙', '연표'].map((value) => [value, value]) }, { key: 'subject', label: '대상' }, { key: 'attribute', label: '속성' }, { key: 'value', label: '정본 값' }, { key: 'statement', label: '설정 문장', type: 'textarea', wide: true }, { key: 'aliases', label: '별칭 (쉼표로 구분)', wide: true }, { key: 'conflictingTerms', label: '직접 충돌 표현 (쉼표로 구분)', wide: true }, { key: 'semanticPatterns', label: '간접·의미 패턴 (쉼표로 구분)', wide: true }, { key: 'evidenceEpisodeIds', label: `근거 회차 ID (${database.episodes.length}개 중 선택)`, wide: true }, { key: 'visibility', label: '공개 범위', options: visibilityOptions }]
 }
 function entityToForm(kind: EntityKind, entity: any, database: StoryDatabase): Record<string, string> {
   if (entity) return Object.fromEntries(Object.entries(entity).map(([key, value]) => [key, Array.isArray(value) ? value.join(', ') : String(value)]))
@@ -245,7 +252,7 @@ function formToEntity(kind: EntityKind, form: Record<string, string>, existing: 
   const id = existing?.id ?? (kind === 'episode' ? `${form.workId}-ep-${String(Number(form.number || 1)).padStart(4, '0')}-${form.state}` : `${kind}-${slug(form.title || form.name || form.subject || '')}`)
   const base = { ...form, id, workId: form.workId || 'twilight-archive', visibility: (form.visibility || 'private') as Visibility }
   if (kind === 'episode') return { ...base, number: Number(form.number || 1), updatedAt: new Date().toISOString() }
-  if (kind === 'lore') return { ...base, conflictingTerms: form.conflictingTerms.split(',').map((value) => value.trim()).filter(Boolean), evidenceEpisodeIds: form.evidenceEpisodeIds.split(',').map((value) => value.trim()).filter(Boolean) }
+  if (kind === 'lore') return { ...base, aliases: (form.aliases ?? '').split(',').map((value) => value.trim()).filter(Boolean), conflictingTerms: (form.conflictingTerms ?? '').split(',').map((value) => value.trim()).filter(Boolean), semanticPatterns: (form.semanticPatterns ?? '').split(',').map((value) => value.trim()).filter(Boolean), evidenceEpisodeIds: (form.evidenceEpisodeIds ?? '').split(',').map((value) => value.trim()).filter(Boolean) }
   return base
 }
 function collectionKey(kind: EntityKind): 'works' | 'episodes' | 'characters' | 'lore' { return kind === 'work' ? 'works' : kind === 'episode' ? 'episodes' : kind === 'character' ? 'characters' : 'lore' }

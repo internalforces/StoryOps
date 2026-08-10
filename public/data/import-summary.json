@@ -6,6 +6,7 @@
   "draftVersions": 120,
   "canonVersions": 120,
   "referenceDocuments": 5,
+  "extractedLoreCandidates": 81,
   "privateCharacterAssets": 6,
   "rawTextPublished": false,
   "note": "원고와 파생 데이터는 private/에만 저장되며 공개 저장소에서 제외됩니다."

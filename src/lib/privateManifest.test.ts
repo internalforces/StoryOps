@@ -13,6 +13,7 @@ const manifest = {
     { id: 'private-work-ep-0001-draft', workId: 'private-work', episode: 1, title: '1화 초안', state: 'draft' },
   ],
   references: [{ id: 'reference-1', source: '설정집.md', sha256: 'reference-hash' }],
+  loreCandidates: [{ id: 'candidate-1', subject: '월문 규칙', statement: '비공개 참고 문서의 월문 규칙 섹션에서 추출한 후보' }],
   characterAssets: [{ id: 'asset-1', source: '인물.png', sha256: 'asset-hash' }],
 }
 
@@ -22,8 +23,9 @@ describe('private manifest adapter', () => {
     expect(database.works[0].title).toBe('비공개 작품')
     expect(database.episodes).toHaveLength(2)
     expect(database.source).toMatchObject({
-      kind: 'private-manifest', episodeVersions: 2, uniqueEpisodes: 1, referenceDocuments: 1, characterAssets: 1,
+      kind: 'private-manifest', episodeVersions: 2, uniqueEpisodes: 1, referenceDocuments: 1, characterAssets: 1, loreCandidates: 1,
     })
+    expect(database.lore[0].subject).toBe('월문 규칙')
     expect(JSON.stringify(database)).not.toContain('원본-파일명.md')
     expect(JSON.stringify(database)).not.toContain('secret-hash')
     expect(JSON.stringify(database)).not.toContain('relativePath')
